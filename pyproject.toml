@@ -7,7 +7,7 @@ name = "hinglish-transcriber"
 version = "1.1.0"
 description = "Transcribe Hindi/Urdu call recordings into Hinglish (Roman-script Hindi) with faster-whisper"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [{ name = "Sandeep" }]
 keywords = ["speech-to-text", "whisper", "hindi", "urdu", "hinglish", "transliteration"]
 dependencies = [
@@ -40,7 +40,7 @@ packages = ["src/transcriber"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -62,7 +62,7 @@ ignore = [
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"  # numpy's type stubs use the 3.12 "type" statement
 files = ["src/transcriber"]
 ignore_missing_imports = true   # faster_whisper and ctranslate2 ship no type stubs
 warn_unused_ignores = true

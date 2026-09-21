@@ -43,7 +43,7 @@ speech-to-text/
 
 ## Setup
 
-Python 3.10 or newer. FFmpeg is not needed (audio decoding is bundled).
+Python 3.12 or newer. FFmpeg is not needed (audio decoding is bundled).
 
 With [uv](https://docs.astral.sh/uv/) (recommended, uses the lock file):
 
