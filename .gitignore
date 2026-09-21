@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Recordings and transcripts are data, not code
+recordings/*
+transcripts/*
+!recordings/.gitkeep
+!transcripts/.gitkeep
+
+# Editors
+.vscode/
+.idea/
