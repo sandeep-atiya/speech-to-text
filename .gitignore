@@ -1,8 +1,16 @@
 # Python
 __pycache__/
 *.pyc
+*.egg-info/
 .venv/
 venv/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Recordings and transcripts are data, not code
 recordings/*

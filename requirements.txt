@@ -1,2 +1,0 @@
-# Core (pulls in ctranslate2, av, huggingface_hub, tokenizers, onnxruntime, numpy)
-faster-whisper>=1.2.1

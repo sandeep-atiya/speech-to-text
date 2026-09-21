@@ -3,10 +3,13 @@
 Change defaults here, or override them per run with command-line flags (see cli.py).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Default input/output folders are relative to where the command is run, so running
+# from the project folder uses ./recordings and ./transcripts.
+DEFAULT_RECORDINGS_DIR = Path("recordings")
+DEFAULT_TRANSCRIPTS_DIR = Path("transcripts")
 
 # Whisper works on 16 kHz mono audio; every input is converted to this.
 SAMPLE_RATE = 16_000
@@ -27,9 +30,9 @@ class Settings:
 
     # --- model -------------------------------------------------------------
     model_size: str = "turbo"
-    device: str = "auto"        # "auto" picks cuda when available, otherwise cpu
+    device: str = "auto"  # "auto" picks cuda when available, otherwise cpu
     compute_type: str = "auto"  # "auto" picks float16 on cuda and int8 on cpu
-    cpu_threads: int = 0        # 0 = let CTranslate2 decide; try the number of physical cores
+    cpu_threads: int = 0  # 0 = let CTranslate2 decide; try the number of physical cores
 
     # --- decoding ----------------------------------------------------------
     beam_size: int = 5
@@ -47,8 +50,8 @@ class Settings:
     english_threshold: float = 0.8
 
     # --- input / output ----------------------------------------------------
-    recordings_dir: Path = PROJECT_ROOT / "recordings"
-    transcripts_dir: Path = PROJECT_ROOT / "transcripts"
+    recordings_dir: Path = field(default_factory=lambda: DEFAULT_RECORDINGS_DIR.resolve())
+    transcripts_dir: Path = field(default_factory=lambda: DEFAULT_TRANSCRIPTS_DIR.resolve())
     formats: tuple[str, ...] = ("txt",)
 
     # Only transcribe the first N seconds (0 = whole file). Handy for quick checks.

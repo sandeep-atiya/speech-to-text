@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Protocol
 
 import ctranslate2
 import numpy as np
@@ -38,6 +39,18 @@ class Transcript:
     segments: list[Segment] = field(default_factory=list)
 
 
+class SpeechModel(Protocol):
+    """The part of faster_whisper.WhisperModel this module uses (lets tests pass a fake)."""
+
+    def transcribe(self, audio: Any, **kwargs: Any) -> tuple[Any, Any]: ...
+
+
+class SpeechPipeline(Protocol):
+    """The part of faster_whisper.BatchedInferencePipeline this module uses."""
+
+    def transcribe(self, audio: Any, **kwargs: Any) -> tuple[Any, Any]: ...
+
+
 def resolve_device(device: str, compute_type: str) -> tuple[str, str]:
     """Turn "auto" choices into concrete values.
 
@@ -50,29 +63,47 @@ def resolve_device(device: str, compute_type: str) -> tuple[str, str]:
     return device, compute_type
 
 
+def load_model(settings: Settings) -> tuple[WhisperModel, str, str]:
+    """Load the Whisper model described by settings; returns (model, device, compute_type)."""
+    device, compute_type = resolve_device(settings.device, settings.compute_type)
+    log.info("Loading '%s' on %s (%s)...", settings.model_size, device, compute_type)
+    started = time.perf_counter()
+    model = WhisperModel(
+        settings.model_size,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=settings.cpu_threads,
+    )
+    log.info("Model loaded in %.1fs", time.perf_counter() - started)
+    return model, device, compute_type
+
+
 class Transcriber:
     """Loads a Whisper model once and transcribes recordings into Hinglish.
 
     Usage:
         transcriber = Transcriber(Settings())
         transcript = transcriber.transcribe(Path("recordings/call.wav"))
+
+    A model and pipeline can be injected (tests do this to avoid loading 1.6 GB of weights).
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        model: SpeechModel | None = None,
+        pipeline: SpeechPipeline | None = None,
+    ) -> None:
         self.settings = settings
-        self.device, self.compute_type = resolve_device(settings.device, settings.compute_type)
-        log.info("Loading '%s' on %s (%s)...", settings.model_size, self.device, self.compute_type)
-        started = time.perf_counter()
-        self.model = WhisperModel(
-            settings.model_size,
-            device=self.device,
-            compute_type=self.compute_type,
-            cpu_threads=settings.cpu_threads,
-        )
+        if model is None:
+            model, self.device, self.compute_type = load_model(settings)
+        else:
+            self.device, self.compute_type = resolve_device(settings.device, settings.compute_type)
+        self.model = model
         # The batched pipeline decodes each voice-activity chunk on its own, so a long
         # Devanagari passage can never overrun the decoder's token limit.
-        self.pipeline = BatchedInferencePipeline(model=self.model)
-        log.info("Model loaded in %.1fs", time.perf_counter() - started)
+        self.pipeline = pipeline if pipeline is not None else BatchedInferencePipeline(model=model)
 
     def detect_language(self, audio: np.ndarray) -> tuple[str, float]:
         """Return Whisper's (language, probability) guess for the start of the audio.

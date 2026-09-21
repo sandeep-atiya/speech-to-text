@@ -16,26 +16,85 @@ import re
 from transcriber.hinglish.words import WORDS
 
 CONSONANTS = {
-    "क": "k", "ख": "kh", "ग": "g", "घ": "gh", "ङ": "ng",
-    "च": "ch", "छ": "chh", "ज": "j", "झ": "jh", "ञ": "ny",
-    "ट": "t", "ठ": "th", "ड": "d", "ढ": "dh", "ण": "n",
-    "त": "t", "थ": "th", "द": "d", "ध": "dh", "न": "n",
-    "प": "p", "फ": "ph", "ब": "b", "भ": "bh", "म": "m",
-    "य": "y", "र": "r", "ल": "l", "व": "v", "ळ": "l",
-    "श": "sh", "ष": "sh", "स": "s", "ह": "h",
+    "क": "k",
+    "ख": "kh",
+    "ग": "g",
+    "घ": "gh",
+    "ङ": "ng",
+    "च": "ch",
+    "छ": "chh",
+    "ज": "j",
+    "झ": "jh",
+    "ञ": "ny",
+    "ट": "t",
+    "ठ": "th",
+    "ड": "d",
+    "ढ": "dh",
+    "ण": "n",
+    "त": "t",
+    "थ": "th",
+    "द": "d",
+    "ध": "dh",
+    "न": "n",
+    "प": "p",
+    "फ": "ph",
+    "ब": "b",
+    "भ": "bh",
+    "म": "m",
+    "य": "y",
+    "र": "r",
+    "ल": "l",
+    "व": "v",
+    "ळ": "l",
+    "श": "sh",
+    "ष": "sh",
+    "स": "s",
+    "ह": "h",
     # precomposed nukta letters
-    "क़": "q", "ख़": "kh", "ग़": "g", "ज़": "z", "ड़": "r", "ढ़": "rh", "फ़": "f", "य़": "y",
+    "क़": "q",
+    "ख़": "kh",
+    "ग़": "g",
+    "ज़": "z",
+    "ड़": "r",
+    "ढ़": "rh",
+    "फ़": "f",
+    "य़": "y",
 }
 # nukta written as a combining mark (U+093C) after the base consonant
 NUKTA_MAP = {"क": "q", "ख": "kh", "ग": "g", "ज": "z", "ड": "r", "ढ": "rh", "फ": "f", "य": "y"}
 
 VOWELS = {  # independent vowel letters
-    "अ": "a", "आ": "aa", "इ": "i", "ई": "i", "उ": "u", "ऊ": "oo", "ऋ": "ri",
-    "ए": "e", "ऐ": "ai", "ओ": "o", "औ": "au", "ऑ": "o", "ऍ": "e", "ऎ": "e", "ऒ": "o",
+    "अ": "a",
+    "आ": "aa",
+    "इ": "i",
+    "ई": "i",
+    "उ": "u",
+    "ऊ": "oo",
+    "ऋ": "ri",
+    "ए": "e",
+    "ऐ": "ai",
+    "ओ": "o",
+    "औ": "au",
+    "ऑ": "o",
+    "ऍ": "e",
+    "ऎ": "e",
+    "ऒ": "o",
 }
 MATRAS = {  # dependent vowel signs ("aa" is refined by context when rendering)
-    "ा": "aa", "ि": "i", "ी": "i", "ु": "u", "ू": "oo", "ृ": "ri",
-    "े": "e", "ै": "ai", "ो": "o", "ौ": "au", "ॉ": "o", "ॅ": "e", "ॆ": "e", "ॊ": "o",
+    "ा": "aa",
+    "ि": "i",
+    "ी": "i",
+    "ु": "u",
+    "ू": "oo",
+    "ृ": "ri",
+    "े": "e",
+    "ै": "ai",
+    "ो": "o",
+    "ौ": "au",
+    "ॉ": "o",
+    "ॅ": "e",
+    "ॆ": "e",
+    "ॊ": "o",
 }
 VIRAMA = "्"
 NUKTA = "़"
@@ -54,7 +113,7 @@ INVISIBLE_RE = re.compile("[​‌‍﻿�]")
 class _Unit:
     """One consonant (with its vowel) or one independent vowel of a word."""
 
-    __slots__ = ("kind", "base", "vowel", "nasal")
+    __slots__ = ("base", "kind", "nasal", "vowel")
 
     def __init__(self, kind: str, base: str, vowel: str = "", nasal: str = "") -> None:
         self.kind = kind

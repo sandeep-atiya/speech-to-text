@@ -10,4 +10,4 @@ change a spelling); everything else is produced by the rules in rules.py.
 from transcriber.hinglish.rules import to_hinglish, word_to_hinglish
 from transcriber.hinglish.words import WORDS
 
-__all__ = ["to_hinglish", "word_to_hinglish", "WORDS"]
+__all__ = ["WORDS", "to_hinglish", "word_to_hinglish"]
