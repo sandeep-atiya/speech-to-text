@@ -72,3 +72,6 @@ check_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --cov=transcriber --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = ["*/__main__.py"]

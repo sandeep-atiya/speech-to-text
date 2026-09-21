@@ -1,0 +1,13 @@
+# Names Whisper should recognise: products, people, herbs. One per line, written the way
+# they should appear in the transcript language (Devanagari for Hindi/Urdu calls).
+# Lines starting with # are ignored. Used automatically when this file is in the
+# folder you run from; pass --glossary to use another file.
+गोंद सिया
+काला गोंद
+हकीम सुलेमान खान
+अश्वगंधा
+सुरंजान
+उन्नाब
+अलसी
+हल्दी
+माजून

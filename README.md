@@ -4,8 +4,8 @@ Transcribes Hindi/Urdu call recordings into **Hinglish** (Hindi written in Roman
 the way people type in chat) using [faster-whisper](https://github.com/SYSTRAN/faster-whisper).
 
 ```
-[0.94s -> 15.57s] hello ji namaste ji batayein main hakim sulimaan ji ke yahan se baat kar raha hoon batayein kya madad kar sakta hoon
-[16.37s -> 31.66s] ... ghutnon mein donon taraf se jo hota hai ... haan to gap kam ho gaya hai theek hai
+[00:00 -> 00:15] hello ji namaste ji batayein main hakim suleman ji ke yahan se baat kar raha hoon batayein kya madad kar sakta hoon
+[00:16 -> 00:31] ... ghutnon mein donon taraf se jo hota hai ... haan to gap kam ho gaya hai theek hai
 ```
 
 Whisper cannot write Hinglish by itself, so each recording is transcribed as Hindi
@@ -19,15 +19,20 @@ speech-to-text/
 ├── pyproject.toml           # package metadata, dependencies, console command, tool config
 ├── uv.lock                  # exact dependency versions (uv)
 ├── transcribe.py            # convenience launcher:  python transcribe.py [files] [options]
+├── glossary.txt             # names Whisper should recognise (products, people)
+├── custom_words.json        # your own Devanagari -> Hinglish spellings
 ├── src/transcriber/         # application package
 │   ├── config.py            #   all settings and their defaults (Settings dataclass)
 │   ├── audio.py             #   find recordings, decode audio to 16 kHz mono
 │   ├── engine.py            #   model loading, language detection, transcription
+│   ├── cleanup.py           #   removes looping repetitions from lines
+│   ├── glossary.py          #   reads glossary.txt and custom_words.json
+│   ├── watch.py             #   folder watcher for --watch
 │   ├── writer.py            #   txt / srt / json output
 │   ├── cli.py               #   command-line parsing and the main loop
 │   └── hinglish/            #   Devanagari -> Hinglish converter
 │       ├── rules.py         #     transliteration rules (schwa deletion, vowels, nasals)
-│       └── words.py         #     spelling table for common words and English loanwords
+│       └── words.py         #     built-in spelling table for common words and loanwords
 ├── tests/                   # pytest test suite
 ├── recordings/              # put call recordings here (mp3, wav, m4a, mp4, ...)
 ├── transcripts/             # transcripts are written here as <name>.hinglish.txt
@@ -57,20 +62,46 @@ hinglish-transcribe --help
 The Whisper model (about 1.6 GB for `turbo`) is downloaded from Hugging Face the first
 time it is used and cached in `~/.cache/huggingface`.
 
-## Usage
+## Daily use
 
-Run from the project folder so the default `recordings/` and `transcripts/` folders are used.
+Drop recordings into `recordings/` and run from the project folder:
 
 ```bash
-hinglish-transcribe                          # every recording in recordings/
-hinglish-transcribe call.wav folder/         # specific files or folders
-hinglish-transcribe call.wav -f txt -f srt   # several output formats (txt, srt, json)
-hinglish-transcribe call.wav --limit-seconds 60   # quick check on the first minute
-hinglish-transcribe --help                   # all options
+hinglish-transcribe                 # transcribes every recording that has no transcript yet
+hinglish-transcribe --watch         # ...then keeps running and picks up new files as they arrive
 ```
 
-`python transcribe.py ...` does the same thing. Each line is printed as soon as it is
-ready and the transcript is saved to `transcripts/<recording name>.hinglish.txt`.
+Each line is printed as soon as it is ready, a progress bar shows the time remaining,
+and the transcript is saved to `transcripts/<recording name>.hinglish.txt`. Recordings
+that already have a transcript are skipped; add `--force` to redo them.
+
+More options:
+
+```bash
+hinglish-transcribe call.wav folder/          # specific files or folders
+hinglish-transcribe -f txt -f srt -f json     # several output formats
+hinglish-transcribe --timestamps seconds      # [15.57s -> 31.66s] instead of [00:15 -> 00:31]
+hinglish-transcribe --limit-seconds 60 call.wav   # quick check on the first minute
+hinglish-transcribe --help                    # everything
+```
+
+`python transcribe.py ...` and `python -m transcriber ...` do the same thing.
+
+## Getting names and spellings right
+
+Two plain files in the project folder are picked up automatically:
+
+* **`glossary.txt`**: names Whisper should recognise, one per line, written in the
+  script of the audio (Devanagari for Hindi/Urdu calls). They are passed to Whisper as
+  hotwords. This also makes Whisper add punctuation. If a call comes out with a phrase
+  repeated many times, the glossary is the usual cause; shorten it or pass
+  `--glossary` with an empty file to switch it off for that run.
+* **`custom_words.json`**: your own Devanagari -> Hinglish spellings, for example
+  `{"सुलेमान": "suleman"}`. These override the built-in table in
+  `src/transcriber/hinglish/words.py`. Whisper writes English words in Devanagari
+  (कैप्सूल), so this is also where loanwords get their English spelling.
+
+Whisper occasionally gets stuck repeating a phrase; such runs are trimmed automatically.
 
 ## Settings
 
@@ -86,13 +117,7 @@ Defaults live in `src/transcriber/config.py`; every one can be overridden on the
 | `--chunk-seconds` | `15` | Speech is cut at pauses into chunks of at most this length, each decoded on its own. Longer chunks can get cut off mid-sentence in Devanagari. |
 | `--beam-size` | `5` | Higher is slightly more accurate and slower. |
 | `--batch-size` | `8` | Chunks decoded together. Lower it if memory is short. |
-
-## Improving the Hinglish spelling
-
-`src/transcriber/hinglish/words.py` maps Devanagari words to the spelling you want, and is
-checked before the rules run. Whisper writes English words in Devanagari (कैप्सूल), so
-that table is also where loanwords get their English spelling (`capsule`). Add an entry
-whenever a word comes out wrong, then run the tests.
+| `--poll-seconds` | `10` | How often `--watch` looks for new files. |
 
 ## Development
 
@@ -112,3 +137,5 @@ The same checks run in GitHub Actions on every push.
 * `--model large-v3` gives the best Hindi accuracy if you can wait (or have a GPU).
 * A GPU with CUDA 12 and cuDNN 9 makes transcription 10x faster; see
   `docs/faster-whisper-README.md` for the required NVIDIA libraries.
+* On a 6-core CPU the `turbo` model runs at about 1.4x realtime: a 20-minute call takes
+  about 15 minutes.

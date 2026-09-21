@@ -9,6 +9,7 @@ import pytest
 
 from transcriber.config import SAMPLE_RATE, Settings
 from transcriber.engine import Transcriber, resolve_device
+from transcriber.hinglish import to_hinglish
 
 
 class FakeModel:
@@ -73,15 +74,34 @@ def test_choose_language(setting: str, detected: str, probability: float, expect
 
 
 def test_transcribe_converts_segments_to_hinglish_and_reports_progress(silence: np.ndarray) -> None:
-    settings = replace(Settings(), chunk_seconds=12, beam_size=3)
+    settings = replace(Settings(), chunk_seconds=12, beam_size=3, glossary_path=None)
     transcriber, pipeline = make_transcriber(settings)
     seen = []
+    lengths = []
 
-    transcript = transcriber.transcribe(Path("call.wav"), on_segment=seen.append)
+    transcript = transcriber.transcribe(Path("call.wav"), on_segment=seen.append, on_start=lengths.append)
 
     assert [s.text for s in transcript.segments] == ["hello ji namaste", "kitne waqt se dard hai"]
     assert seen == transcript.segments
+    assert lengths == [10.0]
     assert transcript.language == "hi"
     assert transcript.detected_probability == 0.9
     assert transcript.audio_seconds == 10.0
-    assert pipeline.calls == [{"language": "hi", "beam_size": 3, "chunk_length": 12, "batch_size": 8}]
+    assert len(pipeline.calls) == 1
+    call = pipeline.calls[0]
+    assert (call["language"], call["beam_size"], call["chunk_length"], call["batch_size"]) == ("hi", 3, 12, 8)
+
+
+def test_glossary_becomes_hotwords_and_custom_words_apply(silence: np.ndarray, tmp_path: Path) -> None:
+    glossary = tmp_path / "glossary.txt"
+    glossary.write_text("गोंद सिया\nहकीम सुलेमान खान\n", encoding="utf-8")
+    words = tmp_path / "custom_words.json"
+    words.write_text('{"ज़ुबानी": "zubani"}', encoding="utf-8")
+    settings = replace(Settings(), glossary_path=glossary, custom_words_path=words)
+
+    transcriber, pipeline = make_transcriber(settings)
+    transcriber.transcribe(Path("call.wav"))
+
+    assert transcriber.hotwords == "गोंद सिया, हकीम सुलेमान खान"
+    assert pipeline.calls[0]["hotwords"] == "गोंद सिया, हकीम सुलेमान खान"
+    assert to_hinglish("ज़ुबानी") == "zubani"

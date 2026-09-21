@@ -12,8 +12,10 @@ import numpy as np
 from faster_whisper import BatchedInferencePipeline, WhisperModel
 
 from transcriber.audio import duration_seconds, load_audio
+from transcriber.cleanup import collapse_repeats
 from transcriber.config import SAMPLE_RATE, Settings
-from transcriber.hinglish import to_hinglish
+from transcriber.glossary import hotwords_from, load_custom_words, load_glossary
+from transcriber.hinglish import add_words, to_hinglish
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +98,16 @@ class Transcriber:
         pipeline: SpeechPipeline | None = None,
     ) -> None:
         self.settings = settings
+
+        custom_words = load_custom_words(settings.custom_words_file)
+        if custom_words:
+            add_words(custom_words)
+            log.info("Loaded %d custom spellings from %s", len(custom_words), settings.custom_words_file)
+        glossary = load_glossary(settings.glossary_file)
+        self.hotwords = hotwords_from(glossary)
+        if glossary:
+            log.info("Loaded %d glossary names from %s", len(glossary), settings.glossary_file)
+
         if model is None:
             model, self.device, self.compute_type = load_model(settings)
         else:
@@ -121,10 +133,22 @@ class Transcriber:
             return "en"
         return "hi"
 
-    def transcribe(self, path: Path, on_segment: Callable[[Segment], None] | None = None) -> Transcript:
-        """Transcribe one recording. on_segment is called for each line as soon as it is ready."""
+    def transcribe(
+        self,
+        path: Path,
+        on_segment: Callable[[Segment], None] | None = None,
+        on_start: Callable[[float], None] | None = None,
+    ) -> Transcript:
+        """Transcribe one recording.
+
+        on_start receives the audio length in seconds once the file is decoded;
+        on_segment is called for each line as soon as it is ready.
+        """
         started = time.perf_counter()
         audio = load_audio(path, self.settings.limit_seconds)
+        audio_seconds = duration_seconds(audio)
+        if on_start is not None:
+            on_start(audio_seconds)
 
         detected, probability = self.detect_language(audio)
         language = self.choose_language(detected, probability)
@@ -136,10 +160,11 @@ class Transcriber:
             beam_size=self.settings.beam_size,
             chunk_length=self.settings.chunk_seconds,
             batch_size=self.settings.batch_size,
+            hotwords=self.hotwords,
         )
         segments: list[Segment] = []
         for raw in raw_segments:
-            segment = Segment(raw.start, raw.end, to_hinglish(raw.text.strip()))
+            segment = Segment(raw.start, raw.end, collapse_repeats(to_hinglish(raw.text.strip())))
             segments.append(segment)
             if on_segment is not None:
                 on_segment(segment)
@@ -149,7 +174,7 @@ class Transcriber:
             detected_language=detected,
             detected_probability=probability,
             language=language,
-            audio_seconds=duration_seconds(audio),
+            audio_seconds=audio_seconds,
             elapsed_seconds=time.perf_counter() - started,
             segments=segments,
         )
