@@ -151,7 +151,8 @@ def configure_output() -> None:
     # Hinglish is ASCII, but detected text can contain other scripts; never crash on it,
     # even when the output is redirected to a file on Windows.
     if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        # line_buffering: lines show up immediately even when output is redirected to a file
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     for noisy in ("faster_whisper", "huggingface_hub", "httpx", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
