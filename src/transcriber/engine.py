@@ -126,9 +126,11 @@ class Transcriber:
         _, info = self.model.transcribe(head, language=None)
         return info.language, info.language_probability
 
-    def choose_language(self, detected: str, probability: float) -> str:
-        if self.settings.language != "auto":
-            return self.settings.language
+    def choose_language(self, detected: str, probability: float, forced: str | None = None) -> str:
+        """The language to decode with: a forced choice, else Hindi unless the audio is clearly English."""
+        forced = forced or self.settings.language
+        if forced != "auto":
+            return forced
         if detected == "en" and probability >= self.settings.english_threshold:
             return "en"
         return "hi"
@@ -138,11 +140,13 @@ class Transcriber:
         path: Path,
         on_segment: Callable[[Segment], None] | None = None,
         on_start: Callable[[float], None] | None = None,
+        language: str | None = None,
     ) -> Transcript:
         """Transcribe one recording.
 
         on_start receives the audio length in seconds once the file is decoded;
-        on_segment is called for each line as soon as it is ready.
+        on_segment is called for each line as soon as it is ready;
+        language overrides the configured language for this call ("auto", "hi", "en").
         """
         started = time.perf_counter()
         audio = load_audio(path, self.settings.limit_seconds)
@@ -151,7 +155,7 @@ class Transcriber:
             on_start(audio_seconds)
 
         detected, probability = self.detect_language(audio)
-        language = self.choose_language(detected, probability)
+        language = self.choose_language(detected, probability, language)
         log.info("Detected language '%s' (%.2f) -> transcribing as '%s'", detected, probability, language)
 
         raw_segments, _ = self.pipeline.transcribe(

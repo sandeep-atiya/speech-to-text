@@ -87,6 +87,21 @@ hinglish-transcribe --help                    # everything
 
 `python transcribe.py ...` and `python -m transcriber ...` do the same thing.
 
+## Web UI
+
+For people who prefer a page to a terminal:
+
+```bash
+pip install -e ".[web]"        # once (or: uv sync --extra web)
+hinglish-transcribe-web --open # opens http://127.0.0.1:7860
+```
+
+Pick a recording from the recordings folder or upload one, press **Transcribe**, and
+watch the lines appear. Click any timestamp to play the call from that moment. The
+transcript is saved to `transcripts/` like the command line does, with txt, srt and
+json downloads. Picking a recording that already has a transcript shows it immediately.
+Use `--host 0.0.0.0` to let other machines on the network open the page.
+
 ## Getting names and spellings right
 
 Two plain files in the project folder are picked up automatically:

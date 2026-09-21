@@ -16,10 +16,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-web = ["gradio>=5.0"]
+web = ["gradio>=6.0"]
 
 [project.scripts]
 hinglish-transcribe = "transcriber.cli:main"
+hinglish-transcribe-web = "transcriber.webui:main"
 
 [dependency-groups]
 dev = [
