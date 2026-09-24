@@ -52,10 +52,11 @@ class Settings:
     batch_size: int = 8
 
     # --- chunking (see chunking.py) ----------------------------------------
-    # Speech is decoded in chunks of at most this many seconds, cut at the quietest
-    # moment near an even split so no word is cut in half. Devanagari needs many tokens,
-    # so 30 s windows overflow the decoder; 15 s chunks fit and give readable lines.
-    chunk_seconds: int = 15
+    # Speech is decoded in chunks of at most this many seconds (the planner aims at about
+    # 85% of it), each cut in a pause so no word is cut in half. Whisper writes at most
+    # 224 tokens per chunk, about 13 s of fast Hindi in Devanagari, and drops the rest;
+    # 12 s stays under that, and a chunk that still overflows is decoded again in halves.
+    chunk_seconds: int = 12
     # Silero VAD speech probability above which a moment counts as speech. Low on
     # purpose: a quiet caller must not be dropped; a false alarm only costs decoding time.
     speech_threshold: float = 0.3

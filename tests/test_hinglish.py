@@ -82,6 +82,15 @@ def test_latin_text_and_punctuation_pass_through() -> None:
     assert to_hinglish("") == ""
 
 
+def test_phrase_entries_replace_whole_expressions(monkeypatch: pytest.MonkeyPatch) -> None:
+    from transcriber.hinglish import WORDS
+
+    monkeypatch.setitem(WORDS, "इश्वर ने चाहत हो", "ishwar ne chaha to")
+
+    assert to_hinglish("अगर इश्वर ने चाहत हो, ठीक है") == "agar ishwar ne chaha to, theek hai"
+    assert to_hinglish("इश्वर ने चाहत होगा") == "ishwar ne chahat hoga"  # only whole words
+
+
 def test_digits_and_danda() -> None:
     assert to_hinglish("२०२६ में।") == "2026 mein."
 

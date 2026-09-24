@@ -23,6 +23,10 @@ log = logging.getLogger(__name__)
 
 # Whisper detects the language from the first 30 s of audio.
 DETECTION_SECONDS = 30
+# CTranslate2 stops generating after 224 tokens (half the decoder's 448 positions, like
+# OpenAI's sample_len) whatever max_length or max_new_tokens say. That is about 13 s of
+# fast Hindi in Devanagari, and the audio after the cut-off is silently dropped.
+MAX_OUTPUT_TOKENS = 224
 # A chunk shorter than this that still overflows the decoder is a repetition loop, not speech.
 MIN_SPLIT_SECONDS = 2.0
 
@@ -87,16 +91,17 @@ def load_model(settings: Settings) -> tuple[WhisperModel, str, str]:
 def token_budget(model: Any, hotwords: str | None) -> int | None:
     """How many text tokens the decoder may emit per chunk; None for a stand-in model without a tokenizer.
 
-    The decoder's 448 positions are shared with the prompt (hotwords and control tokens).
-    Whisper normally stops by itself with an end token, so a chunk that fills the whole
-    budget was cut off, and the audio after the cut was never written down.
+    The decoder's 448 positions are shared with the prompt (hotwords and control tokens),
+    and generation stops at MAX_OUTPUT_TOKENS anyway. Whisper normally stops by itself
+    with an end token, so a chunk that fills the whole budget was cut off, and the audio
+    after the cut was never written down.
     """
     hf_tokenizer = getattr(model, "hf_tokenizer", None)
     if hf_tokenizer is None:
         return None
     tokenizer = Tokenizer(hf_tokenizer, True, task="transcribe", language="hi")
     prompt = model.get_prompt(tokenizer, [], without_timestamps=True, hotwords=hotwords)
-    return int(model.max_length) - len(prompt)
+    return min(MAX_OUTPUT_TOKENS, int(model.max_length) - len(prompt))
 
 
 class Transcriber:
@@ -236,4 +241,5 @@ class Transcriber:
                 yield raw
 
     def ran_out_of_tokens(self, raw: Any) -> bool:
-        return self.token_budget is not None and len(raw.tokens) >= self.token_budget
+        """True when a chunk's text stopped at the token limit (measured: 224 tokens, 223 with a shorter max_length)."""
+        return self.token_budget is not None and len(raw.tokens) >= self.token_budget - 1

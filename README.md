@@ -115,7 +115,9 @@ Two plain files in the project folder are picked up automatically:
 * **`custom_words.json`**: your own Devanagari -> Hinglish spellings, for example
   `{"सुलेमान": "suleman"}`. These override the built-in table in
   `src/transcriber/hinglish/words.py`. Whisper writes English words in Devanagari
-  (कैप्सूल), so this is also where loanwords get their English spelling.
+  (कैप्सूल), so this is also where loanwords get their English spelling. A key with
+  spaces is a phrase and is replaced as a whole, which fixes expressions Whisper always
+  mishears: `{"इश्वर ने चाहत हो": "ishwar ne chaha to"}`.
 
 Whisper occasionally gets stuck repeating a phrase; such runs are trimmed automatically.
 
@@ -130,7 +132,7 @@ Defaults live in `src/transcriber/config.py`; every one can be overridden on the
 | `--compute-type` | `auto` | `float16` on GPU, `int8` on CPU. |
 | `--cpu-threads` | `0` | Library default; measured within 5 % of the best setting on a 6-core CPU. |
 | `--language` | `auto` | Hindi unless Whisper is at least 80 % sure the audio is English. Use `hi` or `en` to force it. |
-| `--chunk-seconds` | `15` | Speech is decoded in chunks of at most this length. Each cut is placed at the quietest moment near an even split, so words are never cut in half and there are no tiny leftovers. A chunk long enough to overflow the decoder (Devanagari needs many tokens) is decoded again in two halves automatically. |
+| `--chunk-seconds` | `12` | Speech is decoded in chunks of at most this length (the planner aims at about 10 s). Each cut goes in a pause near an even split, so words are not cut in half and there are no tiny leftovers. Whisper writes at most 224 tokens per chunk, about 13 s of fast Hindi in Devanagari, and silently drops the rest; 12 s stays under that, and a chunk that still overflows is decoded again in two halves automatically. |
 | `--speech-threshold` | `0.3` | Voice detector sensitivity, 0-1. Lower keeps quieter speech; a false alarm only costs decoding time. |
 | `--skip-silence-seconds` | `3` | Only silences at least this long are left out. Shorter pauses are decoded together with the speech around them, so nothing quiet is lost. |
 | `--beam-size` | `5` | Higher is slightly more accurate and slower. |

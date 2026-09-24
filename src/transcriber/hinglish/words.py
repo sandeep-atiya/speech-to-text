@@ -1,8 +1,9 @@
 """Fixed Hinglish spellings, looked up before the transliteration rules run.
 
-Keys are single Devanagari words exactly as Whisper writes them. Add an entry whenever a
-word comes out with a spelling you do not like; several Devanagari spellings of the same
-word may map to one Hinglish spelling.
+Keys are Devanagari words exactly as Whisper writes them. Add an entry whenever a word
+comes out with a spelling you do not like; several Devanagari spellings of the same word
+may map to one Hinglish spelling. A key with spaces is a phrase: it is replaced as a whole
+before single words are converted, which fixes expressions Whisper always mishears.
 """
 
 WORDS: dict[str, str] = {
@@ -194,6 +195,32 @@ WORDS: dict[str, str] = {
     "हाकीम": "hakim",
     "यूनानी": "unani",
     "युनानी": "unani",
+    "इलाज": "ilaaj",
+    "शिफा": "shifa",
+    "शिफ़ा": "shifa",
+    "मुकम्मल": "mukammal",
+    "मुकमल": "mukammal",
+    "नज़र": "nazar",
+    "नजर": "nazar",
+    "ज़रूरत": "zaroorat",
+    "जरूरत": "zaroorat",
+    "जरुवत": "zaroorat",  # how Whisper often spells the sound
+    "जरूवत": "zaroorat",
+    "ज़िंदगी": "zindagi",
+    "जिंदगी": "zindagi",
+    "जिन्दगी": "zindagi",
+    "ईश्वर": "ishwar",
+    "इश्वर": "ishwar",
+    "दुबारा": "dobara",
+    "दोबारा": "dobara",
+    "पड़ेगी": "padegi",
+    "पड़ेगा": "padega",
+    "पड़ा": "pada",
+    "पड़ी": "padi",
+    "बढ़ेगी": "badhegi",
+    "बढ़ेगा": "badhega",
+    "स्रीफ": "sirf",  # Whisper's misspellings of सिर्फ
+    "सरीफ": "sirf",
     "नुस्खा": "nuskha",
     "नुस्खे": "nuskhe",
     "शुक्रिया": "shukriya",

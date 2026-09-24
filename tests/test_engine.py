@@ -115,6 +115,15 @@ def test_transcribe_converts_segments_to_hinglish_and_reports_progress(silence: 
     assert transcriber.token_budget is None  # no real tokenizer, so the overflow check is off
 
 
+def test_ran_out_of_tokens_triggers_at_the_measured_limit() -> None:
+    transcriber, _ = make_transcriber(Settings())
+    transcriber.token_budget = 224
+
+    assert transcriber.ran_out_of_tokens(SimpleNamespace(tokens=[0] * 224))
+    assert transcriber.ran_out_of_tokens(SimpleNamespace(tokens=[0] * 223))  # seen with a shorter max_length
+    assert not transcriber.ran_out_of_tokens(SimpleNamespace(tokens=[0] * 222))
+
+
 def test_chunk_that_fills_the_token_budget_is_decoded_again_in_halves(silence: np.ndarray) -> None:
     pipeline = TruncatingPipeline()
     transcriber = Transcriber(Settings(), model=FakeModel("hi", 0.9), pipeline=pipeline)

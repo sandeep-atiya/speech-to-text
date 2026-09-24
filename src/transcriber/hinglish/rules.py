@@ -108,6 +108,7 @@ KIND_CONSONANT, KIND_VOWEL, KIND_OTHER = "C", "V", "X"
 
 DEVANAGARI_WORD_RE = re.compile(r"[ऀ-ॣ०-ॿ]+")
 INVISIBLE_RE = re.compile("[​‌‍﻿�]")
+DEVANAGARI_CHAR = r"[ऀ-ॣ०-ॿ]"
 
 
 class _Unit:
@@ -227,8 +228,21 @@ def word_to_hinglish(word: str) -> str:
     return _render(_drop_schwas(_split(word)))
 
 
+def _replace_phrases(text: str) -> str:
+    """Apply the multi-word entries of the table (whole words only) before single words are converted.
+
+    Whisper mishears some fixed expressions the same way every time ("अगर ईश्वर ने चाहा तो"
+    comes out as "ईश्वर ने चाहत हो"); a phrase entry puts the right words back.
+    """
+    for phrase, spelling in WORDS.items():
+        if " " in phrase and phrase in text:
+            text = re.sub(rf"(?<!{DEVANAGARI_CHAR}){re.escape(phrase)}(?!{DEVANAGARI_CHAR})", spelling, text)
+    return text
+
+
 def to_hinglish(text: str) -> str:
     """Return text with every Devanagari word replaced by its Hinglish spelling."""
     text = INVISIBLE_RE.sub("", text)
     text = text.replace("॥", ".").replace("।", ".")
+    text = _replace_phrases(text)
     return DEVANAGARI_WORD_RE.sub(lambda m: word_to_hinglish(m.group(0)), text)
