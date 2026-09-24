@@ -49,11 +49,19 @@ class Settings:
 
     # --- decoding ----------------------------------------------------------
     beam_size: int = 5
-    # Speech is cut at pauses into chunks of at most this many seconds, each decoded on
-    # its own. Devanagari needs many tokens, so 30 s windows get cut off mid-sentence;
-    # 15 s chunks avoid that and give readable lines.
-    chunk_seconds: int = 15
     batch_size: int = 8
+
+    # --- chunking (see chunking.py) ----------------------------------------
+    # Speech is decoded in chunks of at most this many seconds, cut at the quietest
+    # moment near an even split so no word is cut in half. Devanagari needs many tokens,
+    # so 30 s windows overflow the decoder; 15 s chunks fit and give readable lines.
+    chunk_seconds: int = 15
+    # Silero VAD speech probability above which a moment counts as speech. Low on
+    # purpose: a quiet caller must not be dropped; a false alarm only costs decoding time.
+    speech_threshold: float = 0.3
+    # Only silences at least this long are skipped. Shorter pauses are decoded together
+    # with the speech around them, so nothing quiet is lost.
+    skip_silence_seconds: float = 3.0
 
     # --- language ----------------------------------------------------------
     # "auto": transcribe as Hindi (then convert to Hinglish) unless Whisper is at least
@@ -90,6 +98,10 @@ class Settings:
             raise ValueError(f"unknown output format(s): {sorted(unknown)}")
         if self.chunk_seconds <= 0 or self.chunk_seconds > 30:
             raise ValueError("chunk_seconds must be between 1 and 30")
+        if not 0.0 < self.speech_threshold < 1.0:
+            raise ValueError("speech_threshold must be between 0 and 1")
+        if self.skip_silence_seconds < 0.5:
+            raise ValueError("skip_silence_seconds must be at least 0.5")
         if not 0.0 <= self.english_threshold <= 1.0:
             raise ValueError("english_threshold must be between 0 and 1")
 

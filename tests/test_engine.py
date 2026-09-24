@@ -31,9 +31,29 @@ class FakePipeline:
     def transcribe(self, audio, **kwargs):
         self.calls.append(kwargs)
         segments = [
-            SimpleNamespace(start=0.5, end=4.0, text=" हेलो जी नमस्ते "),
-            SimpleNamespace(start=4.0, end=9.5, text=" कितने वक्त से दर्द है "),
+            SimpleNamespace(start=0.5, end=4.0, text=" हेलो जी नमस्ते ", tokens=[1, 2, 3]),
+            SimpleNamespace(start=4.0, end=9.5, text=" कितने वक्त से दर्द है ", tokens=[4, 5, 6, 7]),
         ]
+        return iter(segments), None
+
+
+class TruncatingPipeline:
+    """First call: one segment that used up the whole token budget. Later calls: one segment per clip."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def transcribe(self, audio, **kwargs):
+        self.calls.append(kwargs)
+        clips = kwargs["clip_timestamps"]
+        if len(self.calls) == 1:
+            segments = [SimpleNamespace(start=clips[0]["start"], end=clips[0]["end"], text=" हेलो ", tokens=[1, 2, 3])]
+        else:
+            texts = [" हेलो ", " नमस्ते "]
+            segments = [
+                SimpleNamespace(start=clip["start"], end=clip["end"], text=texts[i], tokens=[1])
+                for i, clip in enumerate(clips)
+            ]
         return iter(segments), None
 
 
@@ -89,7 +109,26 @@ def test_transcribe_converts_segments_to_hinglish_and_reports_progress(silence: 
     assert transcript.audio_seconds == 10.0
     assert len(pipeline.calls) == 1
     call = pipeline.calls[0]
-    assert (call["language"], call["beam_size"], call["chunk_length"], call["batch_size"]) == ("hi", 3, 12, 8)
+    assert (call["language"], call["beam_size"], call["batch_size"]) == ("hi", 3, 8)
+    # the voice detector finds nothing in silence, so the whole recording is decoded as one chunk
+    assert call["clip_timestamps"] == [{"start": 0.0, "end": 10.0}]
+    assert transcriber.token_budget is None  # no real tokenizer, so the overflow check is off
+
+
+def test_chunk_that_fills_the_token_budget_is_decoded_again_in_halves(silence: np.ndarray) -> None:
+    pipeline = TruncatingPipeline()
+    transcriber = Transcriber(Settings(), model=FakeModel("hi", 0.9), pipeline=pipeline)
+    transcriber.token_budget = 3
+
+    transcript = transcriber.transcribe(Path("call.wav"))
+
+    assert len(pipeline.calls) == 2
+    halves = pipeline.calls[1]["clip_timestamps"]
+    assert len(halves) == 2
+    assert halves[0]["start"] == 0.0 and halves[1]["end"] == 10.0
+    assert halves[0]["end"] == halves[1]["start"]
+    assert [s.text for s in transcript.segments] == ["hello", "namaste"]
+    assert [(s.start, s.end) for s in transcript.segments] == [(0.0, halves[0]["end"]), (halves[1]["start"], 10.0)]
 
 
 def test_glossary_becomes_hotwords_and_custom_words_apply(silence: np.ndarray, tmp_path: Path) -> None:

@@ -85,13 +85,27 @@ def build_parser(defaults: Settings) -> argparse.ArgumentParser:
         help="CPU threads for the model, 0 = library default (default: %(default)s)",
     )
     model.add_argument("--beam-size", type=int, default=defaults.beam_size)
-    model.add_argument(
+    model.add_argument("--batch-size", type=int, default=defaults.batch_size)
+
+    chunking = parser.add_argument_group("chunking")
+    chunking.add_argument(
         "--chunk-seconds",
         type=int,
         default=defaults.chunk_seconds,
-        help="max seconds of speech per decoded chunk, 1-30 (default: %(default)s)",
+        help="max seconds of speech per decoded chunk, 1-30; cuts are placed in pauses (default: %(default)s)",
     )
-    model.add_argument("--batch-size", type=int, default=defaults.batch_size)
+    chunking.add_argument(
+        "--speech-threshold",
+        type=float,
+        default=defaults.speech_threshold,
+        help="voice detector sensitivity, 0-1: lower keeps quieter speech (default: %(default)s)",
+    )
+    chunking.add_argument(
+        "--skip-silence-seconds",
+        type=float,
+        default=defaults.skip_silence_seconds,
+        help="only silences at least this long are left out of the transcript (default: %(default)s)",
+    )
 
     vocab = parser.add_argument_group("vocabulary")
     vocab.add_argument(
@@ -135,6 +149,8 @@ def settings_from_args(args: argparse.Namespace, defaults: Settings) -> Settings
         cpu_threads=args.cpu_threads,
         beam_size=args.beam_size,
         chunk_seconds=args.chunk_seconds,
+        speech_threshold=args.speech_threshold,
+        skip_silence_seconds=args.skip_silence_seconds,
         batch_size=args.batch_size,
         language=args.language,
         glossary_path=args.glossary,

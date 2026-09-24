@@ -13,6 +13,9 @@ from transcriber.hinglish import to_hinglish, word_to_hinglish
         ("नहीं", "nahi"),
         ("कैप्सूल", "capsule"),
         ("टीवी", "TV"),
+        ("सिर्फ", "sirf"),  # Urdu loan: "f", not the native "ph"
+        ("तकलीफ़", "takleef"),
+        ("युनानी", "unani"),  # short-u spelling Whisper also uses
         # schwa deletion
         ("समझाने", "samjhane"),
         ("समझ", "samajh"),

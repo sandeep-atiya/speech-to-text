@@ -25,6 +25,8 @@ def test_flags_override_settings(tmp_path: Path) -> None:
             "--model", "large-v3",
             "--language", "hi",
             "--chunk-seconds", "10",
+            "--speech-threshold", "0.4",
+            "--skip-silence-seconds", "2",
             "--limit-seconds", "60",
             "--timestamps", "seconds",
             "--force",
@@ -37,6 +39,8 @@ def test_flags_override_settings(tmp_path: Path) -> None:
     assert settings.model_size == "large-v3"
     assert settings.language == "hi"
     assert settings.chunk_seconds == 10
+    assert settings.speech_threshold == 0.4
+    assert settings.skip_silence_seconds == 2.0
     assert settings.limit_seconds == 60
     assert settings.timestamps == "seconds"
     assert settings.force is True

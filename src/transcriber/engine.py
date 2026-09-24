@@ -2,7 +2,7 @@
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -10,8 +10,10 @@ from typing import Any, Protocol
 import ctranslate2
 import numpy as np
 from faster_whisper import BatchedInferencePipeline, WhisperModel
+from faster_whisper.tokenizer import Tokenizer
 
 from transcriber.audio import duration_seconds, load_audio
+from transcriber.chunking import Chunk, halve, loudness, plan_chunks
 from transcriber.cleanup import collapse_repeats
 from transcriber.config import SAMPLE_RATE, Settings
 from transcriber.glossary import hotwords_from, load_custom_words, load_glossary
@@ -21,6 +23,8 @@ log = logging.getLogger(__name__)
 
 # Whisper detects the language from the first 30 s of audio.
 DETECTION_SECONDS = 30
+# A chunk shorter than this that still overflows the decoder is a repetition loop, not speech.
+MIN_SPLIT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,21 @@ def load_model(settings: Settings) -> tuple[WhisperModel, str, str]:
     return model, device, compute_type
 
 
+def token_budget(model: Any, hotwords: str | None) -> int | None:
+    """How many text tokens the decoder may emit per chunk; None for a stand-in model without a tokenizer.
+
+    The decoder's 448 positions are shared with the prompt (hotwords and control tokens).
+    Whisper normally stops by itself with an end token, so a chunk that fills the whole
+    budget was cut off, and the audio after the cut was never written down.
+    """
+    hf_tokenizer = getattr(model, "hf_tokenizer", None)
+    if hf_tokenizer is None:
+        return None
+    tokenizer = Tokenizer(hf_tokenizer, True, task="transcribe", language="hi")
+    prompt = model.get_prompt(tokenizer, [], without_timestamps=True, hotwords=hotwords)
+    return int(model.max_length) - len(prompt)
+
+
 class Transcriber:
     """Loads a Whisper model once and transcribes recordings into Hinglish.
 
@@ -113,8 +132,8 @@ class Transcriber:
         else:
             self.device, self.compute_type = resolve_device(settings.device, settings.compute_type)
         self.model = model
-        # The batched pipeline decodes each voice-activity chunk on its own, so a long
-        # Devanagari passage can never overrun the decoder's token limit.
+        self.token_budget = token_budget(model, self.hotwords)
+        # The batched pipeline decodes each chunk on its own; chunking.py chooses the chunks.
         self.pipeline = pipeline if pipeline is not None else BatchedInferencePipeline(model=model)
 
     def detect_language(self, audio: np.ndarray) -> tuple[str, float]:
@@ -158,16 +177,24 @@ class Transcriber:
         language = self.choose_language(detected, probability, language)
         log.info("Detected language '%s' (%.2f) -> transcribing as '%s'", detected, probability, language)
 
-        raw_segments, _ = self.pipeline.transcribe(
+        loud = loudness(audio)
+        chunks = plan_chunks(
             audio,
-            language=language,
-            beam_size=self.settings.beam_size,
-            chunk_length=self.settings.chunk_seconds,
-            batch_size=self.settings.batch_size,
-            hotwords=self.hotwords,
+            self.settings.chunk_seconds,
+            self.settings.speech_threshold,
+            self.settings.skip_silence_seconds,
+            loud,
         )
+        speech_seconds = sum(chunk.seconds for chunk in chunks)
+        log.info(
+            "Decoding %.0fs of speech in %d chunk(s), skipping %.0fs of silence",
+            speech_seconds,
+            len(chunks),
+            audio_seconds - speech_seconds,
+        )
+
         segments: list[Segment] = []
-        for raw in raw_segments:
+        for raw in self.decode(audio, loud, chunks, language):
             segment = Segment(raw.start, raw.end, collapse_repeats(to_hinglish(raw.text.strip())))
             segments.append(segment)
             if on_segment is not None:
@@ -182,3 +209,31 @@ class Transcriber:
             elapsed_seconds=time.perf_counter() - started,
             segments=segments,
         )
+
+    def decode(self, audio: np.ndarray, loud: np.ndarray, chunks: list[Chunk], language: str) -> Iterator[Any]:
+        """Raw faster-whisper segments for the chunks, in order.
+
+        A chunk that fills the whole token budget was cut off by the decoder, so it is
+        decoded again as two halves (and those again, if needed) until every word is in.
+        """
+        if not chunks:
+            return
+        raw_segments, _ = self.pipeline.transcribe(
+            audio,
+            language=language,
+            beam_size=self.settings.beam_size,
+            batch_size=self.settings.batch_size,
+            hotwords=self.hotwords,
+            clip_timestamps=[{"start": chunk.start, "end": chunk.end} for chunk in chunks],
+        )
+        for raw in raw_segments:
+            if self.ran_out_of_tokens(raw) and raw.end - raw.start >= MIN_SPLIT_SECONDS:
+                log.warning(
+                    "[%.1fs -> %.1fs] filled the decoder's token budget; decoding it in two parts", raw.start, raw.end
+                )
+                yield from self.decode(audio, loud, halve(Chunk(raw.start, raw.end), loud), language)
+            else:
+                yield raw
+
+    def ran_out_of_tokens(self, raw: Any) -> bool:
+        return self.token_budget is not None and len(raw.tokens) >= self.token_budget

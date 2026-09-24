@@ -24,6 +24,7 @@ speech-to-text/
 ├── src/transcriber/         # application package
 │   ├── config.py            #   all settings and their defaults (Settings dataclass)
 │   ├── audio.py             #   find recordings, decode audio to 16 kHz mono
+│   ├── chunking.py          #   cuts a recording into chunks at pauses, skips only long silences
 │   ├── engine.py            #   model loading, language detection, transcription
 │   ├── cleanup.py           #   removes looping repetitions from lines
 │   ├── glossary.py          #   reads glossary.txt and custom_words.json
@@ -129,7 +130,9 @@ Defaults live in `src/transcriber/config.py`; every one can be overridden on the
 | `--compute-type` | `auto` | `float16` on GPU, `int8` on CPU. |
 | `--cpu-threads` | `0` | Library default; measured within 5 % of the best setting on a 6-core CPU. |
 | `--language` | `auto` | Hindi unless Whisper is at least 80 % sure the audio is English. Use `hi` or `en` to force it. |
-| `--chunk-seconds` | `15` | Speech is cut at pauses into chunks of at most this length, each decoded on its own. Longer chunks can get cut off mid-sentence in Devanagari. |
+| `--chunk-seconds` | `15` | Speech is decoded in chunks of at most this length. Each cut is placed at the quietest moment near an even split, so words are never cut in half and there are no tiny leftovers. A chunk long enough to overflow the decoder (Devanagari needs many tokens) is decoded again in two halves automatically. |
+| `--speech-threshold` | `0.3` | Voice detector sensitivity, 0-1. Lower keeps quieter speech; a false alarm only costs decoding time. |
+| `--skip-silence-seconds` | `3` | Only silences at least this long are left out. Shorter pauses are decoded together with the speech around them, so nothing quiet is lost. |
 | `--beam-size` | `5` | Higher is slightly more accurate and slower. |
 | `--batch-size` | `8` | Chunks decoded together. Lower it if memory is short. |
 | `--poll-seconds` | `10` | How often `--watch` looks for new files. |
@@ -148,6 +151,10 @@ The same checks run in GitHub Actions on every push.
 
 ## Accuracy tips
 
+* Every second of speech is decoded. The log line
+  `Decoding 17s of speech in 2 chunk(s), skipping 0s of silence` says how much was left
+  out; if that looks too high for the call, lower `--speech-threshold` or raise
+  `--skip-silence-seconds`.
 * Recording quality matters most: 8 kHz phone audio is harder than a clean 16 kHz mic.
 * `--model large-v3` gives the best Hindi accuracy if you can wait (or have a GPU).
 * A GPU with CUDA 12 and cuDNN 9 makes transcription 10x faster; see
